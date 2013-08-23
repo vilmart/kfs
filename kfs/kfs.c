@@ -4,6 +4,7 @@
 #include <linux/sched.h>
 #include <linux/module.h>
 #include <asm/uaccess.h>	/* Access to user mode */
+#include <linux/syscalls.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Gabriel Krisman Bertazi");
@@ -32,9 +33,17 @@ static ssize_t kfs_write_file(struct file *filp, const char *buf,
 		size_t count, loff_t *offset) {
 
         unsigned signum;
-        sscanf(buf, "%d", &signum);
+        int err;
+
+        err = sscanf(buf, "%d", &signum);
+
+        /* if(err != 2) { */
+        /*         return -EINVAL; */
+        /* } */
 
         printk("pid: %d signum: %d\n", *((int *) filp->private_data), signum);
+
+        sys_kill(*(int *) filp->private_data, signum);
 
         return count;
 }
