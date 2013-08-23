@@ -11,16 +11,18 @@ MODULE_AUTHOR("Gabriel Krisman Bertazi");
 #define KFS_MAGIC 30
 #define MAX_PID 256
 
+int proc_map[MAX_PID];
+
 static ssize_t kfs_read_file(struct file *filp, char *buf,
 		size_t count, loff_t *offset) {
 
-/*
+   /*
    if (copy_to_user(buf, '0', 1))
 		return -EFAULT;
 	*offset += count;
         */
 
-	return count;
+        return count;
 }
 
 /*
@@ -29,11 +31,18 @@ static ssize_t kfs_read_file(struct file *filp, char *buf,
 static ssize_t kfs_write_file(struct file *filp, const char *buf,
 		size_t count, loff_t *offset) {
 
-	return count;
+        unsigned signum;
+        sscanf(buf, "%d", &signum);
+
+        printk("pid: %d signum: %d\n", *((int *) filp->private_data), signum);
+
+        return count;
 }
 
 static int kfs_open(struct inode *inode, struct file *filp) {
-	return 0;
+
+        filp->private_data = &(proc_map[inode->i_ino]);
+        return 0;
 }
 
 static struct file_operations kfs_ops = {
@@ -46,7 +55,7 @@ static int kfs_refresh_proc_list(struct tree_descr **files) {
 
         struct task_struct *proc;
         static struct tree_descr proc_list[MAX_PID];
-        int i = 1;
+        int inode = 1;
 
         /* Initiate tree descriptor.  */
         proc_list[0].name = NULL;
@@ -55,22 +64,24 @@ static int kfs_refresh_proc_list(struct tree_descr **files) {
 
         for_each_process(proc) {
                 struct pid *pid = task_pid(proc);
-
-                if(proc_list[i].name == NULL)
-                        proc_list[i].name =
+                unsigned pid_num = pid->numbers[0].nr;
+                if(proc_list[inode].name == NULL)
+                        proc_list[inode].name =
                                 kmalloc(sizeof(char)* 4, GFP_KERNEL);
 
-                sprintf(proc_list[i].name, "%d", pid->numbers[0].nr);
-                proc_list[i].ops = &kfs_ops;
-                proc_list[i].mode = S_IWUSR|S_IRUGO;
+                sprintf(proc_list[inode].name, "%d", pid_num);
+                proc_list[inode].ops = &kfs_ops;
+                proc_list[inode].mode = S_IWUSR|S_IRUGO;
 
-                i++;
+                /* Create relation between i-node number and PID.  */
+                proc_map[inode] = pid_num;
+                inode++;
         }
 
         /* Finish file tree descriptor.  */
-        proc_list[i].name = "";
-        proc_list[i].ops = NULL;
-        proc_list[i].mode = 0;
+        proc_list[inode].name = "";
+        proc_list[inode].ops = NULL;
+        proc_list[inode].mode = 0;
 
         *files = proc_list;
         return 0;
@@ -116,3 +127,4 @@ static void __exit kfs_exit(void) {
 
 module_init(kfs_init);
 module_exit(kfs_exit);
+
