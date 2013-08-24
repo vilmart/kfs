@@ -37,12 +37,21 @@ static ssize_t kfs_write_file(struct file *filp, const char *buf,
 
         err = sscanf(buf, "%d", &signum);
 
-        /* if(err != 2) { */
-        /*         return -EINVAL; */
-        /* } */
+        if(err != 1) {
+                return -EINVAL;
+        }
 
-        printk("pid: %d signum: %d\n", *((int *) filp->private_data), signum);
+        err = valid_signal(signum);
 
+        if(err == 0) {
+               /* Invalid Signal.  */
+                return -EINVAL;
+        }
+
+        printk("KFS: pid %d received signum: %d\n",
+               *((int *) filp->private_data), signum);
+
+        /* Dispatch signal.  */
         sys_kill(*(int *) filp->private_data, signum);
 
         return count;
@@ -68,15 +77,20 @@ static int kfs_refresh_proc_list(struct tree_descr **files) {
 
         /* Initiate tree descriptor.  */
         proc_list[0].name = NULL;
-        proc_list[0].ops =  NULL;
+        proc_list[0].ops = NULL;
         proc_list[0].mode = 0;
 
         for_each_process(proc) {
                 struct pid *pid = task_pid(proc);
                 unsigned pid_num = pid->numbers[0].nr;
-                if(proc_list[inode].name == NULL)
+
+                if(proc_list[inode].name == NULL) {
                         proc_list[inode].name =
                                 kmalloc(sizeof(char)* 4, GFP_KERNEL);
+
+                        if(proc_list[inode].name == NULL)
+                                return -ENOMEM;
+                }
 
                 sprintf(proc_list[inode].name, "%d", pid_num);
                 proc_list[inode].ops = &kfs_ops;
