@@ -1,3 +1,20 @@
+/* KFS - Signal Process interface virtual filesystem..
+
+ Copyright (C) 2013 Gabriel Krisman Bertazi <krisman.gabriel@gmail.com>
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -6,11 +23,11 @@
 #include <asm/uaccess.h>	/* Access to user mode */
 #include <linux/syscalls.h>
 
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Gabriel Krisman Bertazi");
-
 #define KFS_MAGIC 30
 #define MAX_PID 256
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Gabriel Krisman Bertazi");
 
 int proc_map[MAX_PID];
 
@@ -26,9 +43,6 @@ static ssize_t kfs_read_file(struct file *filp, char *buf,
         return count;
 }
 
-/*
- * Write a file.
- */
 static ssize_t kfs_write_file(struct file *filp, const char *buf,
 		size_t count, loff_t *offset) {
 
