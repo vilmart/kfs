@@ -62,7 +62,7 @@ static ssize_t kfs_write_file(struct file *filp, const char *buf,
                 return -EINVAL;
         }
 
-        printk("KFS: pid %d received signum: %d\n",
+        printk(KERN_DEBUG "KFS: pid %d received signum: %d\n",
                *((int *) filp->private_data), signum);
 
         /* Dispatch signal.  */
@@ -87,12 +87,17 @@ static int kfs_refresh_proc_list(struct tree_descr **files) {
 
         struct task_struct *proc;
         static struct tree_descr proc_list[MAX_PID];
-        int inode = 1;
+        int inode = 2;
 
         /* Initiate tree descriptor.  */
         proc_list[0].name = NULL;
         proc_list[0].ops = NULL;
         proc_list[0].mode = 0;
+
+        /* Root descriptor.  */
+        proc_list[1].name = NULL;
+        proc_list[1].ops = NULL;
+        proc_list[1].mode = 0;
 
         for_each_process(proc) {
                 struct pid *pid = task_pid(proc);
