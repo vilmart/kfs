@@ -1,6 +1,6 @@
-/* KFS - Signal Process interface virtual filesystem..
+/* KFS - Signal to Process interface virtual filesystem.
 
- Copyright (C) 2013 Gabriel Krisman Bertazi <krisman.gabriel@gmail.com>
+ Copyright (C) 2013 Gabriel Krisman Bertazi <gabriel@krisman.be>
 
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -30,44 +30,53 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Gabriel Krisman Bertazi");
 
-
-#define SIGHUP_STR "SIGHUP"
-#define SIGINT_STR "SIGINT"
-#define SIGQUIT_STR "SIGQUIT"
-#define SIGILL_STR "SIGILL"
-#define SIGTRAP_STR "SIGTRAP"
-#define SIGIOT_STR "SIGIOT"
-#define SIGBUS_STR "SIGBUS"
-#define SIGFPE_STR "SIGFPE"
-#define SIGKILL_STR "SIGKILL"
-#define SIGUSR1_STR "SIGUSR1"
-#define SIGSEGV_STR "SIGSEGV"
-#define SIGUSR2_STR "SIGUSR2"
-#define SIGPIPE_STR "SIGPIPE"
-#define SIGALRM_STR "SIGALRM"
-#define SIGTERM_STR "SIGTERM"
-#define SIGSTKFLT_STR "SIGSTKFLT"
-#define SIGCHLD_STR "SIGCHLD"
-#define SIGCONT_STR "SIGCONT"
-#define SIGSTOP_STR "SIGSTOP"
-#define SIGTSTP_STR "SIGTSTP"
-#define SIGTTIN_STR "SIGTTIN"
-#define SIGTTOU_STR "SIGTTOU"
-#define SIGURG_STR "SIGURG"
-#define SIGXCPU_STR "SIGXCPU"
-#define SIGXFSZ_STR "SIGXFSZ"
-#define SIGVTALRM_STR "SIGVTALRM"
-#define SIGPROF_STR "SIGPROF"
-#define SIGWINCH_STR "SIGWINCH"
-#define SIGIO_STR "SIGIO"
-#define SIGPOLL_STR "SIGPOLL"
-#define SIGPWR_STR "SIGPWR"
-#define SIGSYS_STR "SIGSYS"
-
+#define END_SIGLIST 0
 
 struct kfs_process {
         unsigned signum;
         unsigned pidnum;
+};
+
+struct kfs_posix_signal {
+        unsigned signum;
+        char signame[11];
+};
+
+static struct kfs_posix_signal signals[] = {
+        {1, "SIGHUP"},
+        {2, "SIGINT"},
+        {3, "SIGQUIT"},
+        {4, "SIGILL"},
+        {5, "SIGTRAP"},
+        {6, "SIGIOT"},
+        {7, "SIGBUS"},
+        {8, "SIGFPE"},
+        {9, "SIGKILL"},
+        {10, "SIGUSR1"},
+        {11, "SIGSEGV"},
+        {12, "SIGUSR2"},
+        {13, "SIGPIPE"},
+        {14, "SIGALRM"},
+        {15, "SIGTERM"},
+        {16, "SIGSTKFLT"},
+        {17, "SIGCHLD"},
+        {18, "SIGCONT"},
+        {19, "SIGSTOP"},
+        {20, "SIGTSTP"},
+        {21, "SIGTTIN"},
+        {22, "SIGTTOU"},
+        {23, "SIGURG"},
+        {24, "SIGXCPU"},
+        {25, "SIGXFSZ"},
+        {26, "SIGVTALRM"},
+        {27, "SIGPROF"},
+        {28, "SIGWINCH"},
+        {29, "SIGIO"},
+        {20, "SIGPOLL"},
+        {31, "SIGPWR"},
+        {32, "SIGSYS"},
+        /* Terminate list of signals.  */
+        {0, ""}
 };
 
 static ssize_t kfs_read_file(struct file *filp, char *buf,
@@ -83,7 +92,7 @@ static ssize_t kfs_read_file(struct file *filp, char *buf,
 }
 
 static ssize_t kfs_write_file(struct file *filp, const char *buf,
-		size_t count, loff_t *offset) {
+                              size_t count, loff_t *offset) {
 
         struct kfs_process *k_proc;
         int err;
@@ -97,7 +106,6 @@ static ssize_t kfs_write_file(struct file *filp, const char *buf,
         err = valid_signal(k_proc->signum);
 
         if(err == 0) {
-               /* Invalid Signal.  */
                 return -EINVAL;
         }
 
@@ -136,32 +144,25 @@ static struct inode *kfs_make_inode(struct super_block *sb, int mode) {
                 ret->i_ino = inode_number++;
                 /* We must always set the inode number up
                    here. Otherwise, we might get a *very* strange
-                   behavior like some files doesn't get created while
-                   others do.  */
+                   behavior like some files doesn't get created.  */
         }
         return  ret;
 }
 
-/*
- * Create a file mapping a name to a counter.
- */
 static struct dentry *kfs_create_file (struct super_block *sb,
                                        struct dentry *dir, unsigned pidnum,
-                                       unsigned signum, const char *name) {
+                                       const struct kfs_posix_signal *signal) {
+
         struct dentry *dentry;
         struct inode *inode;
         struct qstr qname;
         struct kfs_process *k_proc;
 
-        /*
-         * Make a hashed version of the name to go with the dentry.
-         */
-        qname.name = name;
-        qname.len = strlen(name);
-        qname.hash = full_name_hash(name, qname.len);
-        /*
-         * Now we can create our dentry and the inode to go with it.
-         */
+        /* Make a hashed version of the name to go with the dentry.  */
+        qname.name = signal->signame;
+        qname.len = strlen(signal->signame);
+        qname.hash = full_name_hash(signal->signame, qname.len);
+        /* Now we can create our dentry and the inode to go with it.  */
         dentry = d_alloc(dir, &qname);
         if (! dentry)
                 goto out;
@@ -170,35 +171,31 @@ static struct dentry *kfs_create_file (struct super_block *sb,
                 goto out_dput;
         inode->i_fop = &kfs_ops;
 
-        /* Create new kfs_process structure  */
+        /* Create new kfs_process structure.  */
         k_proc = kmalloc(sizeof(struct kfs_process), GFP_KERNEL);
         if (!k_proc)
                 goto out_dput;
 
-        k_proc->signum = signum;
+        k_proc->signum = signal->signum;
         k_proc->pidnum = pidnum;
 
         inode->i_private = k_proc;
 
-        /*
-         * Put it all into the dentry cache and we're done.
-         */
+        /* Put it all into the dentry cache and we're done.  */
         d_add(dentry, inode);
         return dentry;
-        /*
-         * Then again, maybe it didn't work.
-         */
+
+        /* Then again, maybe it didn't work.  */
+
 out_dput:
         dput(dentry);
 out:
         return 0;
 }
 
-/*
- * Create a directory which can be used to hold files.  This code is
- * almost identical to the "create file" logic, except that we create
- * the inode with a different mode, and use the libfs "simple" operations.
- */
+/* Create a directory which can be used to hold files.  This code is
+  almost identical to the "create file" logic, except that we create the
+  inode with a different mode, and use the libfs "simple" operations.  */
 static struct dentry *kfs_create_dir (struct super_block *sb,
                                       struct dentry *parent,
                                       const char *name) {
@@ -230,12 +227,15 @@ out:
 
 static int kfs_populate(struct super_block *sb, struct dentry *parent) {
         struct task_struct *proc;
-        struct dentry *proc_dir;
+
 
         for_each_process(proc) {
+                char  *pid_str;
+                struct dentry *proc_dir;
+                struct kfs_posix_signal *signal;
+
                 struct pid *pid = task_pid(proc);
                 unsigned pid_num = pid->numbers[0].nr;
-                char  *pid_str;
 
                 pid_str = kmalloc(sizeof(char)* 8, GFP_KERNEL);
 
@@ -243,7 +243,8 @@ static int kfs_populate(struct super_block *sb, struct dentry *parent) {
                         return -ENOMEM;
 
                 sprintf(pid_str, "%d", pid_num);
-                printk("KERN_DEBUG, creating directory %s\n", pid_str);
+
+                printk(KERN_DEBUG "creating directory %s\n", pid_str);
 
                 proc_dir = kfs_create_dir(sb, parent, pid_str);
 
@@ -253,47 +254,19 @@ static int kfs_populate(struct super_block *sb, struct dentry *parent) {
                                "pid_str:%s\n", pid_num, pid_str);
                 }
 
-                kfs_create_file(sb, proc_dir, pid_num, 1, SIGHUP_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 2, SIGINT_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 3, SIGQUIT_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 4, SIGILL_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 5, SIGTRAP_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 6, SIGIOT_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 7, SIGBUS_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 8, SIGFPE_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 9, SIGKILL_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 10, SIGUSR1_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 11, SIGSEGV_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 12, SIGUSR2_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 13, SIGPIPE_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 14, SIGALRM_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 15, SIGTERM_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 16, SIGSTKFLT_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 17, SIGCHLD_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 18, SIGCONT_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 19, SIGSTOP_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 20, SIGTSTP_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 21, SIGTTIN_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 22, SIGTTOU_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 23, SIGURG_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 24, SIGXCPU_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 25, SIGXFSZ_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 26, SIGVTALRM_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 27, SIGPROF_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 28, SIGWINCH_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 29, SIGIO_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 30, SIGPOLL_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 31, SIGPWR_STR);
-                kfs_create_file(sb, proc_dir, pid_num, 32, SIGSYS_STR);
+                /* Iterate throught list of signals creating one file
+                   for each signal.  */
+                signal = signals;
+                while(signal->signum != END_SIGLIST) {
+                        kfs_create_file(sb, proc_dir, pid_num, signal);
+                        signal += 1;
+                }
         }
-
         return 0;
 }
 
-/*
- * Our superblock operations, both of which are generic kernel ops
- * that we don't have to write ourselves.
- */
+/*  superblock operations, both of which are generic kernel ops that we
+ don't have to write ourselves.  */
 static struct super_operations kfs_s_ops = {
       	.statfs		= simple_statfs,
       	.drop_inode	= generic_delete_inode,
